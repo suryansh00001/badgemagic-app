@@ -88,12 +88,39 @@ class ImageUtils {
 
     double scale = scaleX < scaleY ? scaleX : scaleY;
 
-    double dx = (targetWidth - (inputImage.width * scale)) / 2;
-    double dy = (targetHeight - (inputImage.height * scale)) / 2;
+    double dx =
+        ((targetWidth - (inputImage.width * scale)) / 2).roundToDouble();
+    double dy =
+        ((targetHeight - (inputImage.height * scale)) / 2).roundToDouble();
     canvas.translate(dx, dy);
     canvas.scale(scale, scale);
 
     canvas.drawImage(inputImage, Offset.zero, Paint());
+
+    final ui.Image imgByteData = await recorder
+        .endRecording()
+        .toImage(targetWidth.ceil(), targetHeight.ceil());
+
+    return imgByteData;
+  }
+
+  Future<ui.Image> _scalePicture(
+      ui.Picture picture, double targetHeight, double targetWidth) async {
+    final ui.PictureRecorder recorder = ui.PictureRecorder();
+    final ui.Canvas canvas = Canvas(recorder,
+        Rect.fromPoints(Offset.zero, Offset(targetWidth, targetHeight)));
+
+    double scaleX = targetWidth / originalWidth;
+    double scaleY = targetHeight / originalHeight;
+
+    double scale = scaleX < scaleY ? scaleX : scaleY;
+
+    double dx = ((targetWidth - (originalWidth * scale)) / 2).roundToDouble();
+    double dy = ((targetHeight - (originalHeight * scale)) / 2).roundToDouble();
+    canvas.translate(dx, dy);
+    canvas.scale(scale, scale);
+
+    canvas.drawPicture(picture);
 
     final ui.Image imgByteData = await recorder
         .endRecording()
@@ -199,9 +226,7 @@ class ImageUtils {
   //function to generate the view for the Dialog from the given asset
   Future<ui.Image> generateImageView(String asset) async {
     await _loadSVG(asset);
-    ui.Image image =
-        await picture.toImage(originalWidth.toInt(), originalHeight.toInt());
-    final ui.Image scaledImage = await _scaleSVG(image, 30, 120);
+    final ui.Image scaledImage = await _scalePicture(picture, 30, 120);
     return _trimSVG(scaledImage);
   }
 
@@ -214,19 +239,16 @@ class ImageUtils {
   // Raw 11-row bitmap for an SVG asset, before LED-hex encoding.
   Future<List<List<int>>> generateLedHexMatrix(String asset) async {
     await _loadSVG(asset);
-    ui.Image image =
-        await picture.toImage(originalWidth.toInt(), originalHeight.toInt());
 
-    final ui.Image scaledImage = await _scaleSVG(image, 11, 44);
+    final ui.Image scaledImage = await _scalePicture(picture, 11, 44);
     final ui.Image trimmedImage = await _trimSVG(scaledImage);
     final Uint8List? byteArray = await _convertImageToByteArray(trimmedImage);
     final List<List<int>> pixelArray = _convertUint8ListTo2DList(
         byteArray!, trimmedImage.width, trimmedImage.height);
     for (int x = 0; x < pixelArray.length; x++) {
       for (int y = 0; y < pixelArray[x].length; y++) {
-        if (pixelArray[x][y] != 0) {
-          pixelArray[x][y] = 1;
-        }
+        int a = (pixelArray[x][y] >> 24) & 0xFF;
+        pixelArray[x][y] = (a >= 80) ? 1 : 0;
       }
     }
     return pixelArray;
